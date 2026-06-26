@@ -3,363 +3,396 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>&gt;$6000元的快速分揀系統</title>
-    
-    <!-- 引入 React 核心 -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <!-- 引入 Babel 以解析 JSX (固定穩定版本並確保無 import 錯誤) -->
-    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
-    <!-- 引入 Tailwind CSS -->
+    <title>$6000元的快速分揀系統</title>
+    <!-- Tailwind CSS (快速 UI 設計) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 PapaParse 用於解析 CSV -->
+    <!-- PapaParse (處理 CSV 資料) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- 引入 Tesseract.js 用於 OCR 影像文字辨識 -->
+    <!-- Tesseract.js (光學字元辨識 OCR) -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <!-- 引入 AOS 動畫庫 -->
-    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-
+    
     <style>
-        body { background-color: #f8fafc; font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .camera-container { position: relative; width: 100%; height: 220px; background: #1e293b; border-radius: 0.75rem; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .scan-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); pointer-events: none; }
-        .scan-box { width: 65%; height: 35%; border: 2px dashed #60a5fa; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
-        .scan-line { width: 100%; height: 2px; background: #60a5fa; position: absolute; top: 0; animation: scan 2s infinite linear; }
-        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
-        /* 卡片懸停動畫 */
-        .hover-card { transition: all 0.3s ease; }
-        .hover-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        /* 鎖定畫面，防止手機端滾動 */
+        body { overflow: hidden; height: 100dvh; background-color: #f3f4f6; }
+        
+        /* 動畫效果區 */
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fade-in 0.4s ease-out forwards; }
+        
+        @keyframes pulse-alert { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        .animate-pulse-alert { animation: pulse-alert 2s infinite; }
+        
+        @keyframes scan-line { 0% { top: 0; } 50% { top: 100%; } 100% { top: 0; } }
+        .scanner-line { position: absolute; width: 100%; height: 2px; background: #22c55e; box-shadow: 0 0 10px #22c55e; animation: scan-line 3s linear infinite; }
+
+        /* 相機預覽框設計 */
+        .camera-container { position: relative; overflow: hidden; border-radius: 0.75rem; background: #000; }
+        .camera-overlay { position: absolute; top: 20%; left: 10%; right: 10%; bottom: 20%; border: 2px dashed rgba(255,255,255,0.7); box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); z-index: 10; pointer-events: none;}
+        
+        /* 按鈕互動優化 */
+        .btn-interactive { transition: all 0.2s; }
+        .btn-interactive:active { transform: scale(0.95); }
+        
+        /* 隱藏區塊 */
+        .hidden-canvas { display: none; }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="flex flex-col p-2 gap-2 text-gray-800">
 
-    <script type="text/babel" data-presets="react,env">
-        /** @jsxRuntime classic */
-        /** @jsx React.createElement */
-        /** @jsxFrag React.Fragment */
+    <!-- 全域載入遮罩 (等待 OCR 模組下載) -->
+    <div id="loading-overlay" class="fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <svg class="animate-spin h-12 w-12 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <h2 class="text-xl font-bold">系統初始化中...</h2>
+        <p class="text-sm text-gray-500 mt-2">首次載入文字辨識模型需幾秒鐘</p>
+    </div>
 
-        const { useState, useEffect, useRef, useMemo } = React;
+    <!-- 標題 -->
+    <header class="text-center py-1">
+        <h1 class="text-2xl font-extrabold text-blue-700 tracking-wide drop-shadow-sm">$6000元的快速分揀系統</h1>
+    </header>
 
-        // =========================================================================
-        // ★★★ 請將以下區塊的內容替換為您完整 CSV 檔案的文字 ★★★
-        // 操作方式：將「處理後名單.csv」用記事本打開 -> 全選複製 -> 貼到兩個反引號 (`) 之間
-        // =========================================================================
-        const rawCSV = `郵政編號,姓名,地址,地區或備註,N區碼,N組碼
+    <!-- 第一格：相機顯示區域 (約佔 30% 高度) -->
+    <div class="flex-1 min-h-[25vh] flex flex-col gap-2 animate-fade-in" style="animation-delay: 0.1s;">
+        <div class="camera-container flex-1 w-full shadow-inner relative">
+            <!-- iOS 必須加上 playsinline，否則會自動全螢幕導致錯誤 -->
+            <video id="camera-feed" class="w-full h-full object-cover" autoplay playsinline muted></video>
+            <div class="camera-overlay">
+                <div class="scanner-line"></div>
+            </div>
+            
+            <!-- 相機控制按鈕 -->
+            <div class="absolute bottom-2 left-0 right-0 flex justify-center gap-4 z-20">
+                <button id="btn-start-camera" class="bg-gray-800/80 text-white px-4 py-2 rounded-full backdrop-blur-sm shadow-lg btn-interactive text-sm flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    重啟相機
+                </button>
+                <button id="btn-capture" class="bg-blue-600/90 text-white px-6 py-2 rounded-full backdrop-blur-sm shadow-lg font-bold btn-interactive flex items-center gap-1">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    掃描姓名
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第二格：手寫輸入區域 -->
+    <div class="h-14 animate-fade-in relative z-30" style="animation-delay: 0.2s;">
+        <div class="relative h-full flex items-center">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input type="text" id="manual-input" placeholder="手動輸入姓名查詢..." 
+                class="w-full h-full pl-10 pr-4 py-2 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-lg shadow-sm">
+            <button id="btn-clear" class="absolute inset-y-0 right-2 px-2 text-gray-400 hover:text-gray-600 hidden">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- 第三、四、五格：資料顯示整合區域 -->
+    <div class="flex-none bg-white rounded-xl shadow-md border border-gray-200 p-3 grid grid-cols-2 gap-3 animate-fade-in" style="animation-delay: 0.3s;">
+        <!-- 第三格：名字顯示區域 -->
+        <div class="col-span-2 bg-gray-50 rounded-lg p-2 flex items-center justify-between border border-gray-100">
+            <span class="text-sm text-gray-500 font-medium">姓名</span>
+            <span id="display-name" class="text-2xl font-bold text-gray-800">--</span>
+        </div>
+        
+        <!-- 第四格：N區碼 + N組碼 -->
+        <div class="bg-blue-50 rounded-lg p-2 flex flex-col justify-center items-center border border-blue-100">
+            <span class="text-xs text-blue-600 font-semibold mb-1">分揀代碼 (區+組)</span>
+            <span id="display-code" class="text-3xl font-black text-blue-800 tracking-wider">--</span>
+        </div>
+
+        <!-- 第五格：甲乙類郵件 -->
+        <div class="bg-purple-50 rounded-lg p-2 flex flex-col justify-center items-center border border-purple-100 relative overflow-hidden">
+            <span class="text-xs text-purple-600 font-semibold mb-1">郵件類別</span>
+            <span id="display-type" class="text-3xl font-black text-purple-800">--</span>
+            <!-- 裝飾背景圖示 -->
+            <svg class="absolute -bottom-4 -right-2 w-16 h-16 text-purple-200 opacity-50" fill="currentColor" viewBox="0 0 20 20"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path></svg>
+        </div>
+    </div>
+
+    <!-- 第六格：警示區域 -->
+    <div id="alert-area" class="flex-1 rounded-xl shadow-lg flex flex-col items-center justify-center p-4 text-center transition-colors duration-500 bg-gray-200 text-gray-600 animate-fade-in" style="animation-delay: 0.4s;">
+        <div id="alert-icon" class="mb-2">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <h3 id="alert-title" class="text-2xl font-bold mb-1">等待分揀</h3>
+        <p id="alert-desc" class="text-sm font-medium">請掃描或輸入姓名以開始作業</p>
+    </div>
+
+    <!-- 隱藏的 Canvas 用於處理影像 -->
+    <canvas id="capture-canvas" class="hidden-canvas"></canvas>
+
+    <!-- 內嵌資料區塊 -->
+    <script id="csv-data" type="text/csv">郵政編號,姓名,地址,地區或備註,N區碼,N組碼
 009036,李玹緯,200基隆市仁愛區南榮路463巷25號3樓,基隆,A,01
 009037,謝明季,200基隆市仁愛區南新街318號,,A,01
 009038,郭懷澤,200基隆市仁愛區孝二路29巷9-2號3樓,,A,01
+009039,鄭宇軒,200基隆市仁愛區書院里009鄰獅球路４４巷１４７號,,A,01
+009040,田顏,200基隆市仁愛區復興街115巷3號,,A,01
+008528,陳宜暉,944屏東縣車城鄉福興村014鄰中山路１１號,,W,05
+008529,吳加樂,945屏東縣牡丹鄉石門村008鄰石門路１６５號,,W,05
+008530,陳昱翰,946屏東縣恆春鎮山腳里021鄰恒西路３３巷１１弄２１號之２,,W,05
+008531,王捷,946屏東縣恆春鎮城北里005鄰新興路３６巷２號,,W,05
+008532,廖聿安,946屏東縣恆春鎮南灣里007鄰南灣路１６４號,,W,05
+008533,廖炫宇,946屏東縣恆春鎮大光里022鄰砂尾路１６號之３２,,W,05
+008534,陳家紘,946屏東縣恆春鎮山腳里029鄰湖內路５巷１０號,,W,05
 008535,郭奕辰,946屏東縣恆春鎮墾丁路6號（大廳酒吧-郭奕辰）,,W,05
-008536,陳品帆,947屏東縣滿州鄉里德村005鄰山頂路１７號,,W,05`; 
-        // =========================================================================
+</script>
+<!-- [請在上方 CSV 資料區塊貼上您完整的 4530 筆資料，第一行保留標題即可] -->
 
-        const App = () => {
-            const [db, setDb] = useState([]);
-            const [scannedIds, setScannedIds] = useState(new Set());
-            const [currentName, setCurrentName] = useState("");
-            
-            const [ocrLoading, setOcrLoading] = useState(false);
-            const [cameraActive, setCameraActive] = useState(false);
-            const videoRef = useRef(null);
+    <script>
+        // === 全域變數 ===
+        let database = [];
+        let ocrWorker = null;
+        let videoStream = null;
 
-            // 初始化：解析內建的 CSV 資料，並啟動 AOS 動畫
-            useEffect(() => {
-                AOS.init({ duration: 600, once: true, offset: 50 });
-                
-                Papa.parse(rawCSV.trim(), {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        const parsedDb = results.data.map((row, index) => {
-                            // 清理 BOM
-                            const cleanRow = {};
-                            for (let key in row) {
-                                cleanRow[key.replace(/^\uFEFF/, '').trim()] = row[key];
-                            }
-                            return {
-                                id: cleanRow['郵政編號'] || `NO_ID_${index}`,
-                                name: cleanRow['姓名'] ? cleanRow['姓名'].trim() : '',
-                                nArea: cleanRow['N區碼'] || '',
-                                nGroup: cleanRow['N組碼'] || '',
-                                excelRow: index + 2 // 對應 Excel 的列數
-                            };
-                        }).filter(r => r.name !== ''); 
-                        setDb(parsedDb);
-                    }
-                });
-            }, []);
-
-            // 強化版相機啟動機制 (支援手機端 Fallback)
-            const startCamera = async () => {
-                // 檢查瀏覽器是否支援或是否在安全連線環境下
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert("您的瀏覽器不支援相機功能，或目前並非安全連線(HTTPS)。請確認您使用 Safari 或 Chrome 瀏覽器。");
-                    return;
-                }
-
-                try {
-                    let stream;
-                    try {
-                        // 第一階段：優先嘗試後置鏡頭
-                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                    } catch (err1) {
-                        // 第二階段：若找不到後置鏡頭或受限，改為請求任意可用的相機
-                        console.warn("無法取得後置鏡頭，嘗試請求任意相機...", err1);
-                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                    }
-                    
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = stream;
-                        // 等待視訊資料載入後再播放，避免畫面黑屏
-                        videoRef.current.onloadedmetadata = () => {
-                            videoRef.current.play().catch(e => console.error("相機播放失敗:", e));
+        // === 初始化資料與系統 ===
+        async function initSystem() {
+            // 1. 解析內嵌的 CSV 資料
+            const csvString = document.getElementById('csv-data').textContent.trim();
+            Papa.parse(csvString, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    // 根據需求：編號 2~966 (資料列 1~965) 為甲類，967~4531 為乙類。
+                    // 這裡我們直接用陣列 index (從 0 開始，對應 Excel 第 2 列)
+                    database = results.data.map((row, index) => {
+                        const excelRow = index + 2; 
+                        let type = '未知';
+                        if (excelRow >= 2 && excelRow <= 966) type = '甲類';
+                        else if (excelRow >= 967) type = '乙類';
+                        
+                        return {
+                            rowNum: excelRow,
+                            name: (row['姓名'] || '').trim(),
+                            code: (row['N區碼'] || '') + (row['N組碼'] || ''),
+                            type: type
                         };
-                        setCameraActive(true);
-                    }
-                } catch (err) {
-                    console.error("相機權限錯誤:", err);
-                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                        alert("相機權限已被拒絕 🚫\n請至手機系統「設定」中，允許瀏覽器(Safari/Chrome)存取相機，並重新整理網頁。");
-                    } else {
-                        alert(`無法存取相機 (錯誤: ${err.message})。請檢查硬體或使用手寫輸入。`);
-                    }
+                    });
+                    console.log(`成功載入資料：共 ${database.length} 筆`);
                 }
+            });
+
+            // 2. 初始化 Tesseract OCR 引擎 (繁體中文)
+            try {
+                ocrWorker = await Tesseract.createWorker('chi_tra');
+                // 隱藏載入遮罩
+                document.getElementById('loading-overlay').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 500);
+            } catch (err) {
+                alert("OCR 模型載入失敗，請檢查網路連線。您仍可使用手動輸入。");
+                document.getElementById('loading-overlay').style.display = 'none';
+            }
+
+            // 3. 啟動相機
+            await startCamera();
+        }
+
+        // === 相機控制模組 ===
+        async function startCamera() {
+            const video = document.getElementById('camera-feed');
+            
+            // 如果已有串流先關閉
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+            }
+
+            // 嚴謹的相機請求設定，優先調用後置鏡頭
+            const constraints = {
+                video: { facingMode: { ideal: "environment" } },
+                audio: false
             };
 
-            const stopCamera = () => {
-                if (videoRef.current && videoRef.current.srcObject) {
-                    videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-                }
-                setCameraActive(false);
-            };
-
-            const captureAndOCR = async () => {
-                if (!videoRef.current) return;
-                setOcrLoading(true);
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = videoRef.current.videoWidth;
-                canvas.height = videoRef.current.videoHeight;
-                canvas.getContext('2d').drawImage(videoRef.current, 0, 0);
-                const imgData = canvas.toDataURL('image/jpeg');
-
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = videoStream;
+            } catch (err) {
+                console.warn("標準模式失敗，嘗試降級請求相機", err);
+                // 降級容錯：部分舊型 Android/iOS 不支援 specific facingMode
                 try {
-                    const result = await Tesseract.recognize(imgData, 'chi_tra');
-                    const text = result.data.text.replace(/\s+/g, ''); 
-                    
-                    let foundName = db.find(row => text.includes(row.name))?.name;
-                    
-                    if (foundName) {
-                        setCurrentName(foundName);
-                    } else {
-                        setCurrentName(text.substring(0, 10));
-                        alert("未能精準比對到姓名，請手動確認或修正。");
-                    }
-                } catch (error) {
-                    alert("OCR辨識失敗，請重試或改用手寫輸入。");
+                    videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    video.srcObject = videoStream;
+                } catch (fallbackErr) {
+                    alert("無法存取相機！\n請確保：\n1. 網頁為 HTTPS\n2. 已在系統設定允許瀏覽器使用相機權限");
                 }
-                setOcrLoading(false);
-            };
+            }
+        }
 
-            // 判斷邏輯
-            const resultData = useMemo(() => {
-                if (!currentName.trim()) return null;
-                const match = db.find(r => r.name === currentName.trim());
+        // === 影像擷取與 OCR 處理 ===
+        async function captureAndRecognize() {
+            if (!ocrWorker) {
+                alert("OCR 引擎尚未準備好，請稍後。");
+                return;
+            }
 
-                if (!match) {
-                    return {
-                        status: 'ERROR',
-                        message: '查無資料，請置於異常處理區域並通知月領6000元役男協助處理。',
-                        bgColor: 'bg-red-50 border-red-200',
-                        textColor: 'text-red-700',
-                        icon: <svg className="w-8 h-8 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    };
+            const video = document.getElementById('camera-feed');
+            if (!video.videoWidth) {
+                alert("相機未就緒，請點擊重啟相機。");
+                return;
+            }
+
+            // 視覺回饋：改變按鈕狀態
+            const btn = document.getElementById('btn-capture');
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-1" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 辨識中...';
+            btn.disabled = true;
+
+            // 將影片畫面繪製到隱藏的 Canvas (為提高效能，只裁切中央對焦區域)
+            const canvas = document.getElementById('capture-canvas');
+            const context = canvas.getContext('2d');
+            
+            // 設定裁切範圍 (相對於影片實際大小的中央部分)
+            const cropWidth = video.videoWidth * 0.8;
+            const cropHeight = video.videoHeight * 0.4;
+            const startX = (video.videoWidth - cropWidth) / 2;
+            const startY = (video.videoHeight - cropHeight) / 2;
+
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
+            context.drawImage(video, startX, startY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+            // 將 Canvas 轉換為圖片資料並送入 Tesseract
+            try {
+                const dataUrl = canvas.toDataURL('image/jpeg');
+                const { data: { text } } = await ocrWorker.recognize(dataUrl);
+                
+                // 整理 OCR 文字：移除空白和換行，保留純文字
+                const cleanText = text.replace(/[\s\n\r]/g, '');
+                
+                if (cleanText.length > 0) {
+                    // 自動填入手動輸入框並觸發搜尋
+                    document.getElementById('manual-input').value = cleanText;
+                    document.getElementById('btn-clear').classList.remove('hidden');
+                    searchName(cleanText, true); // 模糊搜尋
+                } else {
+                    setAlert('warning', '辨識失敗', '畫面中未偵測到清晰的姓名，請重新對準後重試。');
                 }
+            } catch (err) {
+                console.error("OCR Error:", err);
+                setAlert('error', '辨識錯誤', '光學辨識過程發生異常，請使用手動輸入。');
+            } finally {
+                // 恢復按鈕狀態
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        }
 
-                const isDuplicate = scannedIds.has(match.id);
-                const categoryText = (match.excelRow >= 2 && match.excelRow <= 966) ? '甲類' : '乙類';
+        // === 核心業務邏輯：搜尋與 UI 更新 ===
+        function searchName(query, isFuzzy = false) {
+            query = query.trim();
+            if (!query) {
+                resetUI();
+                return;
+            }
 
-                if (isDuplicate) {
-                    return {
-                        status: 'ERROR',
-                        data: match,
-                        category: categoryText,
-                        message: '【發現重複信件】請置於異常處理區域並通知月領6000元役男協助處理。',
-                        bgColor: 'bg-red-50 border-red-200',
-                        textColor: 'text-red-700',
-                        icon: <svg className="w-8 h-8 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    };
+            // 尋找符合的資料 (手動輸入時精確比對，OCR 時可以允許部分字串包含)
+            let matches = [];
+            if (isFuzzy && query.length >= 2) {
+                // 如果是 OCR，允許容錯搜尋 (名字被包含在辨識結果中)
+                matches = database.filter(item => query.includes(item.name) || item.name.includes(query));
+            } else {
+                // 精確比對
+                matches = database.filter(item => item.name === query);
+            }
+
+            updateResultsUI(matches, query);
+        }
+
+        function updateResultsUI(matches, originalQuery) {
+            const nameEl = document.getElementById('display-name');
+            const codeEl = document.getElementById('display-code');
+            const typeEl = document.getElementById('display-type');
+
+            if (matches.length === 1) {
+                // 成功：找到唯一一筆資料 -> 綠燈
+                const data = matches[0];
+                nameEl.textContent = data.name;
+                codeEl.textContent = data.code;
+                typeEl.textContent = data.type;
+                
+                setAlert('success', '驗證成功', '請確實封袋並置於指定類別寄出區域');
+            } 
+            else if (matches.length > 1) {
+                // 異常：找到重複資料 -> 紅燈
+                nameEl.textContent = "多筆符合";
+                codeEl.textContent = "異常";
+                typeEl.textContent = "異常";
+                
+                setAlert('error', '發現重複資料', `查到 ${matches.length} 筆相同姓名，置於異常處理區域並通知月領6000元役男協助處理`);
+            } 
+            else {
+                // 異常：查無此人 -> 紅燈
+                nameEl.textContent = originalQuery || "查無此人";
+                codeEl.textContent = "無資料";
+                typeEl.textContent = "--";
+                
+                setAlert('error', '查無資料', '查無此人，請置於異常處理區域並通知月領6000元役男協助處理');
+            }
+        }
+
+        function resetUI() {
+            document.getElementById('display-name').textContent = '--';
+            document.getElementById('display-code').textContent = '--';
+            document.getElementById('display-type').textContent = '--';
+            setAlert('idle', '等待分揀', '請掃描或輸入姓名以開始作業');
+        }
+
+        // === 警示區塊狀態管理 ===
+        function setAlert(state, title, desc) {
+            const area = document.getElementById('alert-area');
+            const titleEl = document.getElementById('alert-title');
+            const descEl = document.getElementById('alert-desc');
+            const iconEl = document.getElementById('alert-icon');
+
+            // 移除所有動畫與顏色 class
+            area.className = "flex-1 rounded-xl shadow-lg flex flex-col items-center justify-center p-4 text-center transition-colors duration-300";
+            
+            titleEl.textContent = title;
+            descEl.textContent = desc;
+
+            if (state === 'success') {
+                area.classList.add('bg-green-500', 'text-white', 'animate-pulse-alert');
+                iconEl.innerHTML = `<svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            } else if (state === 'error' || state === 'warning') {
+                area.classList.add('bg-red-600', 'text-white', 'animate-pulse-alert');
+                iconEl.innerHTML = `<svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+            } else {
+                area.classList.add('bg-gray-200', 'text-gray-600');
+                iconEl.innerHTML = `<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+            }
+        }
+
+        // === 事件監聽器綁定 ===
+        document.addEventListener('DOMContentLoaded', () => {
+            initSystem();
+
+            // 按鈕點擊事件
+            document.getElementById('btn-start-camera').addEventListener('click', startCamera);
+            document.getElementById('btn-capture').addEventListener('click', captureAndRecognize);
+            
+            // 手動輸入框事件 (支援動態搜尋)
+            const input = document.getElementById('manual-input');
+            const btnClear = document.getElementById('btn-clear');
+
+            input.addEventListener('input', (e) => {
+                const val = e.target.value;
+                if(val.length > 0) {
+                    btnClear.classList.remove('hidden');
+                } else {
+                    btnClear.classList.add('hidden');
                 }
+                searchName(val, false);
+            });
 
-                return {
-                    status: 'SUCCESS',
-                    data: match,
-                    category: categoryText,
-                    message: '檢核無誤！請確實封袋並置於指定類別寄出區域。',
-                    bgColor: 'bg-green-50 border-green-200',
-                    textColor: 'text-green-700',
-                    icon: <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                };
-            }, [currentName, db, scannedIds]);
-
-            const handleConfirm = () => {
-                if (resultData?.status === 'SUCCESS') {
-                    setScannedIds(prev => new Set(prev).add(resultData.data.id));
-                    setCurrentName("");
-                    window.scrollTo({ top: 0, behavior: 'smooth' }); // 自動捲動回頂部
-                }
-            };
-
-            return (
-                <div className="max-w-md mx-auto min-h-screen bg-slate-50 pb-24 font-sans text-slate-800">
-                    {/* Header */}
-                    <div className="bg-white/80 backdrop-blur-md shadow-sm p-4 sticky top-0 z-20 flex justify-between items-center border-b border-slate-200" data-aos="fade-down">
-                        <div className="flex items-center space-x-2">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            <h1 className="text-lg font-bold">&gt;$6000元的快速分揀系統</h1>
-                        </div>
-                        <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-                            已處理 {scannedIds.size} / {db.length}
-                        </span>
-                    </div>
-
-                    <div className="p-4 space-y-5">
-                        {/* 1. 相機顯示區域 */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover-card" data-aos="fade-up">
-                            <div className="flex justify-between items-center mb-3">
-                                <h2 className="font-bold text-slate-700 flex items-center">
-                                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs mr-2">1</span>
-                                    相機掃描姓名
-                                </h2>
-                                <button 
-                                    onClick={cameraActive ? stopCamera : startCamera}
-                                    className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-sm ${cameraActive ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'}`}
-                                >
-                                    {cameraActive ? '關閉相機' : '開啟相機'}
-                                </button>
-                            </div>
-                            
-                            <div className="camera-container mb-3 border border-slate-200">
-                                {cameraActive ? (
-                                    <>
-                                        {/* ⚠️ 加入 muted 非常重要，否則 iOS Safari 不允許自動播放 */}
-                                        <video ref={videoRef} autoPlay playsInline muted />
-                                        <div className="scan-overlay">
-                                            <div className="scan-box relative overflow-hidden">
-                                                {ocrLoading && <div className="scan-line"></div>}
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                                        <svg className="w-10 h-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                        <span className="text-sm">尚未開啟相機</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button 
-                                onClick={captureAndOCR}
-                                disabled={!cameraActive || ocrLoading}
-                                className={`w-full font-bold py-3.5 rounded-xl shadow-sm transition-all duration-300 flex justify-center items-center ${!cameraActive ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-800 text-white hover:bg-slate-900 hover:shadow-md hover:-translate-y-0.5 active:scale-95'}`}
-                            >
-                                {ocrLoading ? (
-                                    <><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 辨識中...</>
-                                ) : '擷取影像並辨識'}
-                            </button>
-                        </div>
-
-                        {/* 2. 手寫輸入區域 */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover-card" data-aos="fade-up" data-aos-delay="50">
-                            <h2 className="font-bold text-slate-700 flex items-center mb-3">
-                                <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs mr-2">2</span>
-                                手寫/修正姓名
-                            </h2>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                </div>
-                                <input 
-                                    type="text" 
-                                    value={currentName}
-                                    onChange={(e) => setCurrentName(e.target.value)}
-                                    placeholder="點此輸入姓名..."
-                                    className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                                />
-                                {currentName && (
-                                    <button onClick={() => setCurrentName('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 3 & 4. 併排顯示區域 */}
-                        <div className="grid grid-cols-2 gap-4" data-aos="fade-up" data-aos-delay="100">
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center items-center hover-card">
-                                <span className="text-xs text-slate-400 font-bold mb-2 tracking-wider">3. 辨識姓名</span>
-                                <span className={`text-2xl font-bold truncate w-full text-center ${currentName ? 'text-slate-800' : 'text-slate-300'}`}>
-                                    {currentName || '等待中'}
-                                </span>
-                            </div>
-
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 flex flex-col justify-center items-center hover-card">
-                                <span className="text-xs text-slate-400 font-bold mb-2 tracking-wider">4. N區碼 / N組碼</span>
-                                <span className="text-xl font-black text-blue-600 truncate w-full text-center">
-                                    {resultData?.data ? `${resultData.data.nArea} / ${resultData.data.nGroup}` : '- / -'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* 5. 郵件分類顯示區 */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 flex justify-between items-center hover-card" data-aos="fade-up" data-aos-delay="150">
-                            <div className="flex flex-col">
-                                <span className="text-sm text-slate-500 font-bold mb-1">5. 郵件分類</span>
-                                <span className="text-xs text-slate-400">甲類(2~966) / 乙類(967+)</span>
-                            </div>
-                            <div className={`px-5 py-2 rounded-xl text-xl font-black shadow-sm ${resultData?.category === '甲類' ? 'bg-amber-100 text-amber-700' : resultData?.category === '乙類' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-400'}`}>
-                                {resultData?.category || '未判定'}
-                            </div>
-                        </div>
-
-                        {/* 6. 警示區域 */}
-                        <div 
-                            className={`rounded-2xl p-5 border-2 transition-all duration-300 hover-card ${resultData ? resultData.bgColor : 'bg-slate-50 border-slate-200'}`} 
-                            data-aos="fade-up" 
-                            data-aos-delay="200"
-                        >
-                            <div className="flex items-center mb-3">
-                                {resultData ? resultData.icon : <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                                <h2 className={`font-bold ml-2 ${resultData ? resultData.textColor : 'text-slate-500'}`}>6. 系統狀態</h2>
-                            </div>
-                            <p className={`text-lg font-bold leading-relaxed ${resultData ? resultData.textColor : 'text-slate-400'}`}>
-                                {resultData ? resultData.message : '等待掃描或輸入，以進行防呆檢核。'}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* 綠燈專屬：確認完成按鈕 (FAB 浮動按鈕) */}
-                    <div className={`fixed bottom-0 left-0 right-0 p-4 z-30 transition-transform duration-500 bg-gradient-to-t from-white via-white to-transparent ${resultData?.status === 'SUCCESS' ? 'translate-y-0' : 'translate-y-full'}`}>
-                        <div className="max-w-md mx-auto">
-                            <button 
-                                onClick={handleConfirm}
-                                className="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xl py-4 rounded-2xl shadow-[0_10px_20px_rgba(34,197,94,0.3)] transform transition-all duration-300 hover:-translate-y-1 active:scale-95 flex justify-center items-center"
-                            >
-                                <svg className="w-6 h-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                確認封袋 (換下一筆)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+            // 清除按鈕事件
+            btnClear.addEventListener('click', () => {
+                input.value = '';
+                btnClear.classList.add('hidden');
+                resetUI();
+                input.focus();
+            });
+        });
     </script>
 </body>
 </html>
