@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>郵件分類封袋查重系統</title>
+    <title>&gt;$6000元的快速分揀系統</title>
     
     <!-- 引入 React 核心 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -93,15 +93,40 @@
                 });
             }, []);
 
+            // 強化版相機啟動機制 (支援手機端 Fallback)
             const startCamera = async () => {
+                // 檢查瀏覽器是否支援或是否在安全連線環境下
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("您的瀏覽器不支援相機功能，或目前並非安全連線(HTTPS)。請確認您使用 Safari 或 Chrome 瀏覽器。");
+                    return;
+                }
+
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    let stream;
+                    try {
+                        // 第一階段：優先嘗試後置鏡頭
+                        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    } catch (err1) {
+                        // 第二階段：若找不到後置鏡頭或受限，改為請求任意可用的相機
+                        console.warn("無法取得後置鏡頭，嘗試請求任意相機...", err1);
+                        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    }
+                    
                     if (videoRef.current) {
                         videoRef.current.srcObject = stream;
+                        // 等待視訊資料載入後再播放，避免畫面黑屏
+                        videoRef.current.onloadedmetadata = () => {
+                            videoRef.current.play().catch(e => console.error("相機播放失敗:", e));
+                        };
                         setCameraActive(true);
                     }
                 } catch (err) {
-                    alert("無法存取相機，請檢查權限設定或使用手動輸入。");
+                    console.error("相機權限錯誤:", err);
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        alert("相機權限已被拒絕 🚫\n請至手機系統「設定」中，允許瀏覽器(Safari/Chrome)存取相機，並重新整理網頁。");
+                    } else {
+                        alert(`無法存取相機 (錯誤: ${err.message})。請檢查硬體或使用手寫輸入。`);
+                    }
                 }
             };
 
@@ -195,7 +220,7 @@
                     <div className="bg-white/80 backdrop-blur-md shadow-sm p-4 sticky top-0 z-20 flex justify-between items-center border-b border-slate-200" data-aos="fade-down">
                         <div className="flex items-center space-x-2">
                             <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                            <h1 className="text-lg font-bold">郵件封袋查重</h1>
+                            <h1 className="text-lg font-bold">&gt;$6000元的快速分揀系統</h1>
                         </div>
                         <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
                             已處理 {scannedIds.size} / {db.length}
@@ -221,7 +246,8 @@
                             <div className="camera-container mb-3 border border-slate-200">
                                 {cameraActive ? (
                                     <>
-                                        <video ref={videoRef} autoPlay playsInline />
+                                        {/* ⚠️ 加入 muted 非常重要，否則 iOS Safari 不允許自動播放 */}
+                                        <video ref={videoRef} autoPlay playsInline muted />
                                         <div className="scan-overlay">
                                             <div className="scan-box relative overflow-hidden">
                                                 {ocrLoading && <div className="scan-line"></div>}
